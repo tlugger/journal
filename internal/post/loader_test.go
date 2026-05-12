@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestLoad_Fixture exercises Load against the committed testdata/vault.
@@ -19,7 +20,7 @@ func TestLoad_Fixture(t *testing.T) {
 	// internal/post/ → ../../testdata/vault
 	vault := filepath.Join(wd, "..", "..", "testdata", "vault")
 
-	idx, err := Load(vault)
+	idx, err := Load(vault, time.UTC)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestLoad_Fixture(t *testing.T) {
 
 func TestLoad_MissingVault(t *testing.T) {
 	dir := t.TempDir() // no blog/ subdir
-	idx, err := Load(dir)
+	idx, err := Load(dir, time.UTC)
 	if err != nil {
 		t.Fatalf("Load on empty vault: %v", err)
 	}
@@ -66,7 +67,7 @@ func TestLoad_DuplicateSlug(t *testing.T) {
 	mustWritePost(t, filepath.Join(dir, "blog", "a"), "shared-slug", "2026-05-01")
 	mustWritePost(t, filepath.Join(dir, "blog", "b"), "shared-slug", "2026-05-02")
 
-	_, err := Load(dir)
+	_, err := Load(dir, time.UTC)
 	if err == nil {
 		t.Fatal("expected duplicate-slug error")
 	}
@@ -80,7 +81,7 @@ func TestLoad_SkipsDraftsSubfolder(t *testing.T) {
 	mustWritePost(t, filepath.Join(dir, "blog", "real"), "real", "2026-05-01")
 	mustWritePost(t, filepath.Join(dir, "blog", "_drafts", "hidden"), "hidden", "2026-05-02")
 
-	idx, err := Load(dir)
+	idx, err := Load(dir, time.UTC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +101,7 @@ func TestLoad_PropagatesParseError(t *testing.T) {
 		0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := Load(dir)
+	_, err := Load(dir, time.UTC)
 	if err == nil {
 		t.Fatal("expected error from malformed post")
 	}

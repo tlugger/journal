@@ -36,7 +36,11 @@ type Config struct {
 	SiteTitle  string
 	SiteDesc   string
 	FeedAuthor string
-	Now        func() time.Time // injectable for tests
+	// Timezone is used to interpret bare YYYY-MM-DD frontmatter dates
+	// (they become noon in this timezone). Defaults to time.Local when nil.
+	// RFC3339 frontmatter dates carry their own offset and ignore this.
+	Timezone *time.Location
+	Now      func() time.Time // injectable for tests
 }
 
 // Server is the long-lived HTTP application state. Public methods are safe
@@ -58,6 +62,9 @@ type Server struct {
 func New(cfg Config) (*Server, error) {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
+	}
+	if cfg.Timezone == nil {
+		cfg.Timezone = time.Local
 	}
 	if cfg.SiteTitle == "" {
 		cfg.SiteTitle = "Tyler's blog"
@@ -100,7 +107,7 @@ func New(cfg Config) (*Server, error) {
 // it directly. Errors are returned (and logged by the caller) but do not
 // drop the previous good state.
 func (s *Server) ReloadIndex() error {
-	idx, err := post.Load(s.cfg.VaultDir)
+	idx, err := post.Load(s.cfg.VaultDir, s.cfg.Timezone)
 	if err != nil {
 		return err
 	}

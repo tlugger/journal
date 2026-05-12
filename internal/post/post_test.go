@@ -21,7 +21,7 @@ published: true
 Some text.
 `)
 
-	p, err := Parse(src, "/v/blog/hello", "/v/blog/hello/index.md", "hello")
+	p, err := Parse(src, "/v/blog/hello", "/v/blog/hello/index.md", "hello", time.UTC)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -31,7 +31,10 @@ Some text.
 	if p.Slug != "hello-world" {
 		t.Errorf("slug = %q", p.Slug)
 	}
-	want := time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC)
+	// YYYY-MM-DD frontmatter is interpreted as noon in the passed-in
+	// location — the load-bearing reason we don't anchor to midnight,
+	// which would shift back a day in any reader west of UTC.
+	want := time.Date(2026, 5, 12, 12, 0, 0, 0, time.UTC)
 	if !p.Date.Equal(want) {
 		t.Errorf("date = %v, want %v", p.Date, want)
 	}
@@ -77,7 +80,7 @@ body
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Parse([]byte(tc.src), "/v/blog/x", "/v/blog/x/index.md", "x")
+			_, err := Parse([]byte(tc.src), "/v/blog/x", "/v/blog/x/index.md", "x", time.UTC)
 			if !errors.Is(err, ErrDraft) {
 				t.Fatalf("expected ErrDraft, got %v", err)
 			}
@@ -94,7 +97,7 @@ published: true
 
 body
 `)
-	p, err := Parse(src, "/v/blog/my-folder", "/v/blog/my-folder/index.md", "my-folder")
+	p, err := Parse(src, "/v/blog/my-folder", "/v/blog/my-folder/index.md", "my-folder", time.UTC)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -112,7 +115,7 @@ published: true
 
 body
 `)
-	_, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s")
+	_, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s", time.UTC)
 	if err == nil {
 		t.Fatal("expected error for missing date")
 	}
@@ -131,9 +134,42 @@ published: true
 
 body
 `)
-	_, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s")
+	_, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s", time.UTC)
 	if err == nil {
 		t.Fatal("expected error for bad date")
+	}
+}
+
+func TestParse_BareDateUsesTimezone(t *testing.T) {
+	denver, err := time.LoadLocation("America/Denver")
+	if err != nil {
+		t.Skip("America/Denver tz data not available")
+	}
+	src := []byte(`---
+title: T
+slug: s
+date: 2026-05-12
+published: true
+---
+
+body
+`)
+	p, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s", denver)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Noon in Denver should be the same absolute instant as 18:00 UTC
+	// (May 12 in standard MST; 18:00 in MDT is closer to 19:00 UTC,
+	// but Denver in May is MDT so noon MDT = 18:00 UTC).
+	utc := p.Date.UTC()
+	if utc.Year() != 2026 || utc.Month() != time.May || utc.Day() != 12 {
+		t.Errorf("UTC calendar date should still be 2026-05-12, got %v", utc)
+	}
+	if p.Date.Location().String() != "America/Denver" {
+		t.Errorf("expected location America/Denver, got %s", p.Date.Location())
+	}
+	if p.Date.Hour() != 12 {
+		t.Errorf("expected hour 12 (noon local), got %d", p.Date.Hour())
 	}
 }
 
@@ -147,7 +183,7 @@ published: true
 
 body
 `)
-	p, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s")
+	p, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s", time.UTC)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -164,7 +200,7 @@ title: : not yaml
 
 body
 `)
-	_, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s")
+	_, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s", time.UTC)
 	if err == nil {
 		t.Fatal("expected error for malformed YAML")
 	}
@@ -172,7 +208,7 @@ body
 
 func TestParse_NoFrontmatter(t *testing.T) {
 	src := []byte("just a markdown file with no frontmatter\n")
-	_, err := Parse(src, "/v/blog/x", "/v/blog/x/index.md", "x")
+	_, err := Parse(src, "/v/blog/x", "/v/blog/x/index.md", "x", time.UTC)
 	if !errors.Is(err, ErrNoFrontmatter) {
 		t.Fatalf("expected ErrNoFrontmatter, got %v", err)
 	}
@@ -187,7 +223,7 @@ published: true
 
 body without closing fence
 `)
-	_, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s")
+	_, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s", time.UTC)
 	if err == nil {
 		t.Fatal("expected error for missing closing fence")
 	}
@@ -195,7 +231,7 @@ body without closing fence
 
 func TestParse_CRLFNormalized(t *testing.T) {
 	src := []byte("---\r\ntitle: T\r\nslug: s\r\ndate: 2026-01-01\r\npublished: true\r\n---\r\n\r\nbody\r\n")
-	p, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s")
+	p, err := Parse(src, "/v/blog/s", "/v/blog/s/index.md", "s", time.UTC)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

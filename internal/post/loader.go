@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Index is the result of scanning a vault — every published post, keyed by
@@ -21,7 +22,11 @@ type Index struct {
 // published `index.md` it finds. Drafts and stray files are skipped; YAML
 // parse failures and duplicate slugs are returned as errors so we don't
 // silently publish a half-broken site.
-func Load(vaultRoot string) (*Index, error) {
+//
+// `defaultLoc` is the timezone used to interpret bare YYYY-MM-DD
+// frontmatter dates (pass `time.UTC` for stable test output, or
+// `time.Local` / a specific `time.LoadLocation` result in production).
+func Load(vaultRoot string, defaultLoc *time.Location) (*Index, error) {
 	blogRoot := filepath.Join(vaultRoot, "blog")
 	info, err := os.Stat(blogRoot)
 	if err != nil {
@@ -60,7 +65,7 @@ func Load(vaultRoot string) (*Index, error) {
 			return fmt.Errorf("read %s: %w", path, err)
 		}
 
-		p, err := Parse(content, dir, path, folderName)
+		p, err := Parse(content, dir, path, folderName, defaultLoc)
 		if err != nil {
 			if errors.Is(err, ErrDraft) {
 				return nil

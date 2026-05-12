@@ -57,7 +57,10 @@ published: true
 - `published: true` is required. Missing or `false` → invisible.
 - `slug` becomes the URL (`/posts/<slug>`). Falls back to the folder name if
   omitted.
-- `date` accepts `YYYY-MM-DD` or full RFC3339.
+- `date` accepts `YYYY-MM-DD` or full RFC3339. Bare dates are interpreted
+  as **noon in the binary's `BLOG_TZ`** (default `America/Denver`) so that
+  RSS readers don't roll the calendar day back to the previous day. Use
+  RFC3339 (`2026-05-12T08:00:00-06:00`) if you want a specific time.
 - Images and links use ordinary markdown — `![alt](image.png)` and
   `[text](other.html)`. Relative paths are rewritten to `/posts/<slug>/...`
   at render time so they Just Work in GitHub previews too.

@@ -40,6 +40,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		SiteURL:   "https://blog.test.local",
 		SiteTitle: "test blog",
 		SiteDesc:  "test",
+		Timezone:  time.UTC,
 		Now:       func() time.Time { return time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
@@ -244,6 +245,7 @@ func TestReloadIndex_PicksUpNewPost(t *testing.T) {
 		Templates: assets.Templates,
 		Static:    assets.Static,
 		SiteURL:   "https://blog.test.local",
+		Timezone:  time.UTC,
 	})
 	if err != nil {
 		t.Fatal(err)

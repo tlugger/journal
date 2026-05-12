@@ -20,6 +20,10 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	// Embeds the IANA timezone database into the binary so America/Denver
+	// (and friends) load regardless of whether the host has zoneinfo
+	// installed. The Pi's default `/etc/localtime` is UTC anyway.
+	_ "time/tzdata"
 
 	"github.com/fsnotify/fsnotify"
 
@@ -80,6 +84,7 @@ func parseFlags() (server.Config, string) {
 	siteTitle := flag.String("site-title", envOr("BLOG_SITE_TITLE", "Tyler's blog"), "Site title")
 	siteDesc := flag.String("site-desc", envOr("BLOG_SITE_DESC", "Engineering, self-hosting, baseball."), "Site description")
 	feedAuthor := flag.String("feed-author", envOr("BLOG_FEED_AUTHOR", ""), "RSS author tag (e.g. \"you@example.com (Tyler)\")")
+	tz := flag.String("tz", envOr("BLOG_TZ", "America/Denver"), "IANA timezone for bare YYYY-MM-DD frontmatter dates. Defaults to America/Denver (the Pi's tz is UTC, which would shift dates back a day for US readers).")
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
 
@@ -106,6 +111,12 @@ func parseFlags() (server.Config, string) {
 		log.Printf("static override: reading from %s", *staticDir)
 	}
 
+	loc, err := time.LoadLocation(*tz)
+	if err != nil {
+		log.Fatalf("invalid -tz / BLOG_TZ %q: %v", *tz, err)
+	}
+	log.Printf("date timezone: %s", loc)
+
 	return server.Config{
 		VaultDir:   *vault,
 		Templates:  templatesFS,
@@ -114,6 +125,7 @@ func parseFlags() (server.Config, string) {
 		SiteTitle:  *siteTitle,
 		SiteDesc:   *siteDesc,
 		FeedAuthor: *feedAuthor,
+		Timezone:   loc,
 	}, *addr
 }
 

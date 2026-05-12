@@ -51,9 +51,17 @@ var ErrNoFrontmatter = errors.New("post is missing frontmatter")
 //
 // `dir` is the directory holding the file (used for the folder-name slug
 // fallback and stored on the result). `path` is the absolute path to the
-// file itself. The returned ErrDraft means "skip this", everything else
-// means "the file is broken and the user should know".
-func Parse(content []byte, dir, path, folderName string) (Post, error) {
+// file itself. `defaultLoc` is the timezone used to interpret bare
+// YYYY-MM-DD frontmatter dates; pass `time.UTC` if you don't care or
+// want stable test output. RFC3339-formatted dates carry their own
+// offset and ignore this argument.
+//
+// The returned ErrDraft means "skip this", everything else means "the
+// file is broken and the user should know".
+func Parse(content []byte, dir, path, folderName string, defaultLoc *time.Location) (Post, error) {
+	if defaultLoc == nil {
+		defaultLoc = time.UTC
+	}
 	body, fm, err := splitFrontmatter(content)
 	if err != nil {
 		return Post{}, err
@@ -71,7 +79,7 @@ func Parse(content []byte, dir, path, folderName string) (Post, error) {
 	if raw.Date == "" {
 		return Post{}, errors.New("frontmatter: missing required field `date`")
 	}
-	date, err := parseDate(raw.Date)
+	date, err := parseDate(raw.Date, defaultLoc)
 	if err != nil {
 		return Post{}, fmt.Errorf("frontmatter: invalid date %q: %w", raw.Date, err)
 	}
@@ -126,10 +134,15 @@ func splitFrontmatter(content []byte) (body, fm []byte, err error) {
 // parseDate accepts a few common shapes from frontmatter: the YYYY-MM-DD
 // shorthand (which is what the Obsidian template emits), and full RFC3339
 // timestamps if you want a specific publish time of day.
-func parseDate(s string) (time.Time, error) {
+//
+// For the YYYY-MM-DD form, the time-of-day is set to noon in `loc`. Noon
+// (not midnight) so that RSS readers more than 12 hours offset from `loc`
+// still display the intended calendar date; this is the load-bearing
+// reason `loc` is a parameter.
+func parseDate(s string, loc *time.Location) (time.Time, error) {
 	s = strings.TrimSpace(s)
-	if t, err := time.Parse("2006-01-02", s); err == nil {
-		return t, nil
+	if t, err := time.ParseInLocation("2006-01-02", s, loc); err == nil {
+		return time.Date(t.Year(), t.Month(), t.Day(), 12, 0, 0, 0, loc), nil
 	}
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
 		return t, nil
