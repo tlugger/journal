@@ -3,7 +3,9 @@ threshold:
   total: 50
   package: 40
 override:
-  - path: ^cmd/blog/main\.go$
+  # cmd/blog is the wiring entrypoint (flags, http.Server, fsnotify loop) —
+  # not unit-tested; covered by the local smoke + Pi deployment instead.
+  - path: ^cmd/blog$
     threshold: 0
 exclude:
   paths:
