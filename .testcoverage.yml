@@ -1,0 +1,10 @@
+profile: cover.out
+threshold:
+  total: 50
+  package: 40
+override:
+  - path: ^cmd/blog/main\.go$
+    threshold: 0
+exclude:
+  paths:
+    - _test\.go$

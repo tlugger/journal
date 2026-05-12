@@ -1,0 +1,79 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to release from
+        required: true
+        type: string
+        default: main
+      version:
+        description: Version tag (e.g., v0.5.0)
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build linux/arm64
+        env:
+          GOOS: linux
+          GOARCH: arm64
+        run: go build -ldflags "-X main.version=${{ github.event.inputs.version }}" -o blog-linux-arm64 ./cmd/blog
+
+      - name: Build linux/amd64
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -ldflags "-X main.version=${{ github.event.inputs.version }}" -o blog-linux-amd64 ./cmd/blog
+
+      - name: Build linux/arm
+        env:
+          GOOS: linux
+          GOARCH: arm
+        run: go build -ldflags "-X main.version=${{ github.event.inputs.version }}" -o blog-linux-arm ./cmd/blog
+
+      - name: Create binary checksums
+        run: |
+          sha256sum blog-linux-arm64 > blog-linux-arm64.sha256
+          sha256sum blog-linux-amd64 > blog-linux-amd64.sha256
+          sha256sum blog-linux-arm > blog-linux-arm.sha256
+
+      - name: Delete existing tag if exists
+        run: |
+          git tag -d ${{ github.event.inputs.version }} || true
+          git push --delete origin ${{ github.event.inputs.version }} || true
+
+      - name: Create tag
+        run: git tag ${{ github.event.inputs.version }}
+
+      - name: Push tag
+        run: git push origin ${{ github.event.inputs.version }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          generate_release_notes: true
+          files: |
+            blog-linux-arm64
+            blog-linux-arm64.sha256
+            blog-linux-amd64
+            blog-linux-amd64.sha256
+            blog-linux-arm
+            blog-linux-arm.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,193 @@
+/* Palette + fonts: shared sibling of notnottyler.com (workspace/notnottyler/main.css).
+   The :root block here mirrors that file 1:1 — earth-tone family, low saturation,
+   layered shadow + top-edge highlight for depth — so the two sites read as siblings. */
+
+:root {
+    --bg: #1a1a1e;
+    --surface: #2A241D;
+    --text: #F0EBE5;
+    --text-muted: rgba(240, 235, 229, 0.65);
+    --link: #D49B7C;
+    --link-hover: #E8B695;
+    --border: rgba(240, 235, 229, 0.08);
+    --img-border: rgba(240, 235, 229, 0.12);
+
+    --tint-card:    #3D352B;
+    --tint-card-hover: #463528;
+
+    --tile-shadow:
+        0 1px 2px rgba(40, 28, 18, 0.20),
+        0 10px 28px rgba(40, 28, 18, 0.25),
+        inset 0 1px 0 rgba(255, 240, 220, 0.05);
+    --tile-shadow-hover:
+        0 2px 4px rgba(40, 28, 18, 0.28),
+        0 18px 44px rgba(40, 28, 18, 0.36),
+        inset 0 1px 0 rgba(255, 240, 220, 0.07);
+
+    --mono: 'JetBrains Mono', 'SF Mono', Menlo, Monaco, Consolas, monospace;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Raleway', sans-serif;
+    line-height: 1.6;
+}
+
+a {
+    color: var(--link);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 120ms ease, color 120ms ease;
+}
+a:hover { color: var(--link-hover); border-bottom-color: var(--link-hover); }
+
+/* ─── Layout ────────────────────────────────────────────────────────── */
+
+.site-header,
+.site-footer,
+main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 1.25em 1.5em;
+}
+
+.site-header {
+    padding-top: 2em;
+    padding-bottom: 1.5em;
+    border-bottom: 1px solid var(--border);
+}
+
+.site-title {
+    font-family: var(--mono);
+    margin: 0;
+    font-size: 1.6rem;
+    color: var(--text);
+}
+
+.site-tagline {
+    margin: 0.3em 0 0;
+    color: var(--text-muted);
+}
+
+.home-link {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    color: var(--text-muted);
+}
+
+.site-footer {
+    margin-top: 4em;
+    padding-top: 1.5em;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 0.9rem;
+}
+
+/* ─── Post list (homepage) ──────────────────────────────────────────── */
+
+.post-list {
+    padding-top: 1.5em;
+}
+
+.post-summary {
+    background: var(--tint-card);
+    border-radius: 14px;
+    box-shadow: var(--tile-shadow);
+    padding: 1.4em 1.6em;
+    margin-bottom: 1.2em;
+    transition: box-shadow 160ms ease, background 160ms ease;
+}
+.post-summary:hover {
+    background: var(--tint-card-hover);
+    box-shadow: var(--tile-shadow-hover);
+}
+.post-summary time {
+    display: block;
+    font-family: var(--mono);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 0.3em;
+}
+.post-summary h2 {
+    margin: 0 0 0.4em;
+    font-size: 1.35rem;
+    line-height: 1.3;
+}
+.post-summary h2 a {
+    color: var(--text);
+    border-bottom: none;
+}
+.post-summary h2 a:hover { color: var(--link-hover); }
+.post-summary p {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.empty {
+    color: var(--text-muted);
+    font-family: var(--mono);
+}
+
+/* ─── Single post ───────────────────────────────────────────────────── */
+
+.post .post-header h1 {
+    margin: 0.3em 0 0.1em;
+    line-height: 1.2;
+}
+
+.post .post-header time {
+    font-family: var(--mono);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.post-body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    border: 1px solid var(--img-border);
+    margin: 1em 0;
+}
+
+.post-body h2, .post-body h3 {
+    margin-top: 1.6em;
+    line-height: 1.3;
+}
+
+.post-body code {
+    font-family: var(--mono);
+    background: rgba(255, 240, 220, 0.06);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    font-size: 0.92em;
+}
+
+.post-body pre {
+    background: rgba(0, 0, 0, 0.30);
+    padding: 1em 1.2em;
+    border-radius: 10px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+}
+
+.post-body pre code {
+    background: transparent;
+    padding: 0;
+}
+
+.post-body blockquote {
+    border-left: 3px solid var(--link);
+    margin: 1em 0;
+    padding: 0.2em 0 0.2em 1em;
+    color: var(--text-muted);
+}
+
+.post-body hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2em 0;
+}

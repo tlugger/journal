@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tyler's blog</title>
+<meta name="description" content="Posts by Tyler Lugger — engineering, self-hosting, baseball.">
+<meta name="theme-color" content="#1a1a1e">
+<link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96">
+<link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg">
+<link rel="shortcut icon" href="/static/favicon/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
+<link rel="manifest" href="/static/favicon/site.webmanifest">
+<link rel="stylesheet" href="/static/base.css">
+<link rel="alternate" type="application/rss+xml" title="Tyler's blog" href="/rss.xml">
+<link href="https://fonts.googleapis.com/css?family=Raleway&display=swap" rel="stylesheet">
+</head>
+<body>
+<header class="site-header">
+<h1 class="site-title">~/blog</h1>
+<p class="site-tagline">Notes from Tyler Lugger.</p>
+</header>
+<main class="post-list">
+{{range .Posts}}
+<article class="post-summary">
+<time datetime="{{.Date.Format "2006-01-02"}}">{{.Date.Format "January 2, 2006"}}</time>
+<h2><a href="/posts/{{.Slug}}">{{.Title}}</a></h2>
+{{if .Summary}}<p>{{.Summary}}</p>{{end}}
+</article>
+{{else}}
+<p class="empty">No posts yet.</p>
+{{end}}
+</main>
+<footer class="site-footer">
+<a href="/rss.xml">RSS</a> · <a href="https://notnottyler.com">notnottyler.com</a>
+</footer>
+</body>
+</html>
