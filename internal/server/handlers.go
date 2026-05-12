@@ -162,5 +162,9 @@ func (s *Server) handleRSS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/rss+xml; charset=utf-8")
+	// RSS is public; permit browser-based feed readers and other
+	// cross-origin consumers (e.g. notnottyler.com fetching this feed
+	// client-side to preview latest posts) to read it.
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	_, _ = w.Write(body)
 }

@@ -198,6 +198,9 @@ func TestHandleRSS_ContentTypeAndShape(t *testing.T) {
 	if !strings.HasPrefix(hdr.Get("Content-Type"), "application/rss+xml") {
 		t.Errorf("content-type = %q", hdr.Get("Content-Type"))
 	}
+	if got := hdr.Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
+	}
 	if !strings.Contains(body, "<rss version=\"2.0\"") {
 		t.Errorf("not an RSS doc: %s", body)
 	}
