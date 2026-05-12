@@ -2,8 +2,9 @@ journal
 =======
 
 A small, custom blog served from a Raspberry Pi at `blog.tylerkno.ws`. Posts
-are markdown files in an Obsidian vault that already syncs to S3; the Pi
-pulls the vault on a timer and a Go service renders posts on demand.
+are markdown files in an Obsidian vault that already syncs to S3. The Pi
+keeps a local mirror of the vault (cron `aws s3 sync`) and a Go service
+renders posts on demand.
 
 Companion to [notnottyler.com](https://notnottyler.com) — same earth-tone
 palette and fonts, designed to be linked from there when the time comes.
@@ -13,7 +14,7 @@ Architecture
 
 ```
 Obsidian (Mac)  ──►  S3 bucket  ──►  Raspberry Pi (Caddy → Go service)
-                                      ├─ aws s3 sync (every 5m, systemd timer)
+                                      ├─ aws s3 sync (cron, every 5m)
                                       ├─ fsnotify wakes the renderer
                                       └─ in-memory cache of rendered HTML
 ```
@@ -154,17 +155,17 @@ curl -fsSL https://raw.githubusercontent.com/tlugger/journal/main/install.sh | s
 
 The installer:
 
-1. Drops a placeholder `/home/pi/blog/.env` on first install (S3 URI + AWS
-   creds + `BLOG_SITE_URL`).
+1. Drops a bare-minimum placeholder `/home/pi/blog/.env` on first install
+   — just `BLOG_VAULT_DIR=/home/pi/blog/vault`, which is enough to boot
+   the service. Add any optional vars (`BLOG_ADDR`, `BLOG_SITE_URL`,
+   `BLOG_FEED_AUTHOR`) yourself.
 2. Detects architecture, fetches the latest release binary or builds from
-   source if no release is published yet.
-3. Installs `awscli` if missing.
-4. Writes three systemd units:
-   - `blog.service` — the Go server
-   - `blog-vault-sync.service` — `aws s3 sync` (oneshot)
-   - `blog-vault-sync.timer` — fires the sync every 5 minutes
-5. Enables and starts them (only enables on first install, until you fill
-   in `.env`).
+   source if no release is published yet. Templates and CSS are
+   `//go:embed`-ed into the binary — no separate asset directory.
+3. Writes `blog.service` (systemd), enables and starts it.
+
+Populating `BLOG_VAULT_DIR` is out of scope — wire up an `aws s3 sync`
+in your own crontab (or rsync, or whatever).
 
 ### Caddy setup (manual, one-time)
 
@@ -184,15 +185,21 @@ Repo layout
 -----------
 
 ```
-cmd/blog/main.go             # entrypoint: flags, fsnotify, http.Server
-internal/post/                # frontmatter, vault walk, goldmark rendering
-internal/server/              # routes, cache, handlers
-internal/feed/                # hand-rolled RSS 2.0
-templates/{base,index}.html   # default page chrome
-static/base.css               # palette shared with notnottyler.com
-testdata/vault/               # hermetic fixture used by every test
-install.sh                    # curl|bash installer for the Pi
+cmd/blog/main.go                       # entrypoint: flags, fsnotify, http.Server
+internal/post/                          # frontmatter, vault walk, goldmark rendering
+internal/server/                        # routes, cache, handlers
+internal/feed/                          # hand-rolled RSS 2.0
+internal/assets/                        # //go:embed templates + static into binary
+internal/assets/templates/{base,index}.html
+internal/assets/static/                 # base.css + favicon bundle (palette matches notnottyler.com)
+testdata/vault/                         # hermetic fixture used by every test
+install.sh                              # curl|bash installer for the Pi
 ```
+
+For live iteration on templates/CSS without rebuilds, pass `-templates`
+and `-static` flags pointing at the on-disk source (or set
+`BLOG_TEMPLATE_DIR` / `BLOG_STATIC_DIR` env vars); otherwise the binary
+serves the embedded copies.
 
 Tests are in `_test.go` files next to each source file (stdlib `testing`
 only, table-driven, hermetic). `go test -race ./...` is the contract.

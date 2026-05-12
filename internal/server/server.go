@@ -6,9 +6,9 @@ package server
 import (
 	"fmt"
 	"html/template"
+	"io/fs"
 	"mime"
 	"net/http"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -21,17 +21,22 @@ func init() {
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 }
 
-// Config controls runtime behavior: where the vault lives, where templates
-// and static files live, and the canonical site URL used in RSS.
+// Config controls runtime behavior: where the vault lives, which fs.FS
+// supplies templates and static assets, and the canonical site URL used
+// in RSS.
+//
+// Templates and Static are filesystem-shaped because the caller chooses
+// between the embedded asset bundle (`internal/assets`) and an on-disk
+// `os.DirFS` override for local dev iteration without rebuilds.
 type Config struct {
-	VaultDir     string
-	TemplateDir  string
-	StaticDir    string
-	SiteURL      string // e.g. "https://blog.tylerkno.ws"
-	SiteTitle    string
-	SiteDesc     string
-	FeedAuthor   string
-	Now          func() time.Time // injectable for tests
+	VaultDir   string
+	Templates  fs.FS // expects index.html, base.html at the root
+	Static     fs.FS // served at /static/; favicon.ico expected under favicon/
+	SiteURL    string
+	SiteTitle  string
+	SiteDesc   string
+	FeedAuthor string
+	Now        func() time.Time // injectable for tests
 }
 
 // Server is the long-lived HTTP application state. Public methods are safe
@@ -60,6 +65,12 @@ func New(cfg Config) (*Server, error) {
 	if cfg.SiteDesc == "" {
 		cfg.SiteDesc = "Posts by Tyler Lugger."
 	}
+	if cfg.Templates == nil {
+		return nil, fmt.Errorf("server config: Templates fs.FS is required")
+	}
+	if cfg.Static == nil {
+		return nil, fmt.Errorf("server config: Static fs.FS is required")
+	}
 
 	s := &Server{
 		cfg:      cfg,
@@ -67,11 +78,11 @@ func New(cfg Config) (*Server, error) {
 		cache:    NewCache(),
 	}
 
-	indexTmpl, err := template.ParseFiles(filepath.Join(cfg.TemplateDir, "index.html"))
+	indexTmpl, err := template.ParseFS(cfg.Templates, "index.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse index template: %w", err)
 	}
-	postTmpl, err := template.ParseFiles(filepath.Join(cfg.TemplateDir, "base.html"))
+	postTmpl, err := template.ParseFS(cfg.Templates, "base.html")
 	if err != nil {
 		return nil, fmt.Errorf("parse base template: %w", err)
 	}
@@ -122,8 +133,8 @@ func (s *Server) NewMux() http.Handler {
 	// Browsers probe /favicon.ico unconditionally; serve it from the
 	// favicon bundle so dev-tools doesn't show a noisy 404.
 	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, filepath.Join(s.cfg.StaticDir, "favicon", "favicon.ico"))
+		http.ServeFileFS(w, r, s.cfg.Static, "favicon/favicon.ico")
 	})
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir(s.cfg.StaticDir))))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(s.cfg.Static)))
 	return mux
 }

@@ -4,7 +4,6 @@ set -euo pipefail
 INSTALL_DIR="/home/pi/blog"
 REPO="tlugger/journal"
 SERVICE_NAME="blog"
-SYNC_SERVICE_NAME="blog-vault-sync"
 
 CURR_DIR="$(pwd)"
 
@@ -34,17 +33,20 @@ if [ -f "$INSTALL_DIR/blog" ]; then
   echo "  📓 Blog Updater"
   echo "  ───────────────"
   echo "  Updating existing installation"
-  IS_UPDATE=1
 else
   echo ""
   echo "  📓 Blog Installer"
   echo "  ─────────────────"
   echo "  Markdown-from-vault blog for blog.tylerkno.ws"
-  IS_UPDATE=0
 fi
 echo ""
 
 # ── .env ────────────────────────────────────────────────────────────
+#
+# Bare minimum: only BLOG_VAULT_DIR is required by the binary. Everything
+# else (BLOG_ADDR, BLOG_SITE_URL, RSS metadata) is optional. How the
+# vault directory gets populated is up to you — cron `aws s3 sync`,
+# rsync, manual scp, whatever.
 
 if [ "$CURR_DIR" != "$INSTALL_DIR" ] && [ -f "$CURR_DIR/.env" ]; then
   step "Loading .env"
@@ -56,33 +58,12 @@ elif [ -f "$INSTALL_DIR/.env" ]; then
 else
   step "Writing placeholder .env"
   cat > "$INSTALL_DIR/.env" << 'EOF'
-# Required: where Obsidian's S3 sync lands. Use the s3:// URI of the
-# directory that contains your vault root (the parent of blog/).
-BLOG_S3_URI=s3://your-bucket/path/to/vault
-
 # Local mirror of the vault. The blog binary reads from here.
+# Populate this directory however you like (cron + aws s3 sync, etc.).
 BLOG_VAULT_DIR=/home/pi/blog/vault
-
-# HTTP listen address; Caddy reverse-proxies to this.
-BLOG_ADDR=:8106
-
-# Canonical site URL (used in RSS link/guid).
-BLOG_SITE_URL=https://blog.tylerkno.ws
-
-# RSS author tag, optional. Format: "you@example.com (Display Name)"
-BLOG_FEED_AUTHOR=
-
-# AWS credentials for the sync. Use an IAM role if possible; otherwise:
-AWS_REGION=us-east-1
-# AWS_ACCESS_KEY_ID=
-# AWS_SECRET_ACCESS_KEY=
 EOF
   chmod 600 "$INSTALL_DIR/.env"
-  ok "Created $INSTALL_DIR/.env with placeholders"
-  warn "Edit .env before starting the service:"
-  echo "     - BLOG_S3_URI must point to your vault root in S3"
-  echo "     - AWS credentials must be present (env or IAM role)"
-  NEEDS_CONFIG=1
+  ok "Created $INSTALL_DIR/.env"
 fi
 
 # ── Architecture ─────────────────────────────────────────────────────
@@ -114,16 +95,10 @@ if [ "$CURR_DIR" != "$INSTALL_DIR" ] && [ -f "$CURR_DIR/blog" ]; then
   ok "Installed from current directory"
 fi
 
-# Also copy templates/static if we're running from a checkout.
-if [ "$CURR_DIR" != "$INSTALL_DIR" ] && [ -d "$CURR_DIR/templates" ]; then
-  step "Copying templates and static assets"
-  cp -r "$CURR_DIR/templates" "$INSTALL_DIR/templates"
-  cp -r "$CURR_DIR/static" "$INSTALL_DIR/static"
-  ok "Templates + static copied from checkout"
-  HAVE_ASSETS=1
-fi
-
 # ── Binary from release or source ─────────────────────────────────────
+#
+# Templates and static assets are embedded into the binary via //go:embed,
+# so the binary alone is the whole deploy — no separate `cp` step.
 
 if [ "$SKIP_BINARY" = "0" ]; then
   step "Getting blog binary"
@@ -160,26 +135,9 @@ if [ "$SKIP_BINARY" = "0" ]; then
     (cd "$TMPDIR/journal" && go build -ldflags "-X main.version=$VERSION" -o "$INSTALL_DIR/blog" ./cmd/blog 2>&1) &
     spin $! "Building binary"
     chmod +x "$INSTALL_DIR/blog"
-
-    if [ -z "${HAVE_ASSETS:-}" ]; then
-      step "Installing templates and static assets"
-      cp -r "$TMPDIR/journal/templates" "$INSTALL_DIR/templates"
-      cp -r "$TMPDIR/journal/static" "$INSTALL_DIR/static"
-      ok "Templates + static copied"
-    fi
   fi
 fi
 ok "Binary installed to $INSTALL_DIR/blog"
-
-# ── AWS CLI ──────────────────────────────────────────────────────────
-
-if ! command -v aws &>/dev/null; then
-  step "Installing AWS CLI"
-  (sudo apt-get update -qq && sudo apt-get install -y -qq awscli) &
-  spin $! "Installing awscli"
-fi
-AWS_BIN="$(command -v aws)"
-ok "aws found at $AWS_BIN"
 
 # ── Vault dir ────────────────────────────────────────────────────────
 
@@ -187,19 +145,17 @@ mkdir -p "$INSTALL_DIR/vault"
 
 # ── systemd: blog.service ───────────────────────────────────────────
 
-step "Writing systemd units"
+step "Writing systemd unit"
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" << EOF
 [Unit]
 Description=Blog server (markdown from Obsidian vault)
-After=network-online.target ${SYNC_SERVICE_NAME}.service
+After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=$INSTALL_DIR
 EnvironmentFile=$INSTALL_DIR/.env
-Environment="BLOG_TEMPLATE_DIR=$INSTALL_DIR/templates"
-Environment="BLOG_STATIC_DIR=$INSTALL_DIR/static"
 ExecStart=$INSTALL_DIR/blog
 Restart=always
 RestartSec=10
@@ -210,66 +166,15 @@ StandardError=append:$INSTALL_DIR/blog.log
 WantedBy=multi-user.target
 EOF
 
-# ── systemd: blog-vault-sync.service ────────────────────────────────
-
-cat > "/etc/systemd/system/${SYNC_SERVICE_NAME}.service" << EOF
-[Unit]
-Description=Sync Obsidian vault from S3 to local mirror
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-WorkingDirectory=$INSTALL_DIR
-EnvironmentFile=$INSTALL_DIR/.env
-ExecStart=/bin/bash -c '$AWS_BIN s3 sync "\$BLOG_S3_URI" "\$BLOG_VAULT_DIR" --delete --exact-timestamps'
-StandardOutput=append:$INSTALL_DIR/vault-sync.log
-StandardError=append:$INSTALL_DIR/vault-sync.log
-EOF
-
-# ── systemd: blog-vault-sync.timer ──────────────────────────────────
-
-cat > "/etc/systemd/system/${SYNC_SERVICE_NAME}.timer" << EOF
-[Unit]
-Description=Run vault sync every 5 minutes
-
-[Timer]
-OnBootSec=30s
-OnUnitActiveSec=5min
-Unit=${SYNC_SERVICE_NAME}.service
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
-systemctl enable "${SYNC_SERVICE_NAME}.timer" >/dev/null 2>&1
-ok "Units enabled"
-
-if [ "${NEEDS_CONFIG:-}" = "1" ]; then
-  warn "Services NOT started — fill in $INSTALL_DIR/.env first."
-else
-  systemctl start "${SYNC_SERVICE_NAME}.service" || warn "vault sync did not run cleanly — check $INSTALL_DIR/vault-sync.log"
-  systemctl restart "$SERVICE_NAME"
-  systemctl start "${SYNC_SERVICE_NAME}.timer"
-  ok "Services started"
-fi
+systemctl restart "$SERVICE_NAME"
+ok "Service enabled and started"
 
 # ── Done ────────────────────────────────────────────────────────────
 
 echo ""
-if [ "${NEEDS_CONFIG:-}" = "1" ]; then
-  echo "  📓 Installed! Now finish setup:"
-  echo ""
-  echo "    1. sudo nano $INSTALL_DIR/.env        # set S3 URI + AWS creds"
-  echo "    2. sudo systemctl start ${SYNC_SERVICE_NAME}.service ${SYNC_SERVICE_NAME}.timer"
-  echo "    3. sudo systemctl start $SERVICE_NAME"
-else
-  echo "  📓 Blog is live!"
-fi
-
+echo "  📓 Blog is live!"
 echo ""
 echo "  One manual step the installer doesn't touch — add this to your Caddyfile:"
 echo ""
@@ -280,9 +185,8 @@ echo ""
 echo "  Then: sudo systemctl reload caddy"
 echo ""
 echo "  Useful commands:"
-echo "    sudo systemctl status $SERVICE_NAME"
-echo "    sudo systemctl status ${SYNC_SERVICE_NAME}.timer"
-echo "    sudo systemctl start ${SYNC_SERVICE_NAME}.service   # force a sync now"
+echo "    sudo nano $INSTALL_DIR/.env             # add optional vars"
+echo "    sudo systemctl status $SERVICE_NAME     # check health"
+echo "    sudo systemctl restart $SERVICE_NAME    # pick up .env changes"
 echo "    tail -f $INSTALL_DIR/blog.log"
-echo "    tail -f $INSTALL_DIR/vault-sync.log"
 echo ""

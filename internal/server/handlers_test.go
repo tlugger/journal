@@ -9,11 +9,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/tlugger/journal/internal/assets"
 )
 
 // repoRoot is the absolute path to the journal repo root, derived once.
-// We can't use the test's working directory directly because the templates
-// and testdata live at repo-relative paths.
+// Used only to locate testdata/vault — templates and static now come from
+// the embedded assets package, not from disk.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	wd, err := os.Getwd()
@@ -32,13 +34,13 @@ func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	root := repoRoot(t)
 	s, err := New(Config{
-		VaultDir:    filepath.Join(root, "testdata", "vault"),
-		TemplateDir: filepath.Join(root, "templates"),
-		StaticDir:   filepath.Join(root, "static"),
-		SiteURL:     "https://blog.test.local",
-		SiteTitle:   "test blog",
-		SiteDesc:    "test",
-		Now:         func() time.Time { return time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC) },
+		VaultDir:  filepath.Join(root, "testdata", "vault"),
+		Templates: assets.Templates,
+		Static:    assets.Static,
+		SiteURL:   "https://blog.test.local",
+		SiteTitle: "test blog",
+		SiteDesc:  "test",
+		Now:       func() time.Time { return time.Date(2026, 5, 12, 0, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -232,14 +234,13 @@ func TestHandleHealthz(t *testing.T) {
 func TestReloadIndex_PicksUpNewPost(t *testing.T) {
 	// Create a temp vault with one post; serve; mutate; reload.
 	dir := t.TempDir()
-	root := repoRoot(t)
 	mustWritePost(t, filepath.Join(dir, "blog", "one"), "one", "2026-05-01")
 
 	s, err := New(Config{
-		VaultDir:    dir,
-		TemplateDir: filepath.Join(root, "templates"),
-		StaticDir:   filepath.Join(root, "static"),
-		SiteURL:     "https://blog.test.local",
+		VaultDir:  dir,
+		Templates: assets.Templates,
+		Static:    assets.Static,
+		SiteURL:   "https://blog.test.local",
 	})
 	if err != nil {
 		t.Fatal(err)

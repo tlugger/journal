@@ -8,7 +8,7 @@ import (
 
 // Cache memoizes rendered posts keyed by slug. The slug→source-file map is
 // owned by post.Index; this cache only stores the rendered output so a
-// vault-sync change can invalidate without re-walking the filesystem.
+// vault file change can invalidate without re-walking the filesystem.
 //
 // All public methods are safe for concurrent use by the HTTP handlers.
 type Cache struct {

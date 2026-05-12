@@ -23,6 +23,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/tlugger/journal/internal/assets"
 	"github.com/tlugger/journal/internal/server"
 )
 
@@ -73,8 +74,8 @@ func main() {
 func parseFlags() (server.Config, string) {
 	addr := flag.String("addr", envOr("BLOG_ADDR", ":8106"), "HTTP listen address")
 	vault := flag.String("vault", envOr("BLOG_VAULT_DIR", ""), "Path to the local Obsidian vault directory (must contain blog/)")
-	tmplDir := flag.String("templates", envOr("BLOG_TEMPLATE_DIR", "templates"), "Path to the templates directory")
-	staticDir := flag.String("static", envOr("BLOG_STATIC_DIR", "static"), "Path to the static assets directory")
+	tmplDir := flag.String("templates", envOr("BLOG_TEMPLATE_DIR", ""), "Optional override: read templates from this directory instead of the embedded bundle (for live dev iteration)")
+	staticDir := flag.String("static", envOr("BLOG_STATIC_DIR", ""), "Optional override: read static assets from this directory instead of the embedded bundle")
 	siteURL := flag.String("site-url", envOr("BLOG_SITE_URL", "https://blog.tylerkno.ws"), "Canonical site URL (used in RSS)")
 	siteTitle := flag.String("site-title", envOr("BLOG_SITE_TITLE", "Tyler's blog"), "Site title")
 	siteDesc := flag.String("site-desc", envOr("BLOG_SITE_DESC", "Engineering, self-hosting, baseball."), "Site description")
@@ -91,14 +92,28 @@ func parseFlags() (server.Config, string) {
 		log.Fatal("must set -vault or BLOG_VAULT_DIR")
 	}
 
+	// Default to embedded assets; override with an on-disk directory only
+	// if the user explicitly asks for it (handy for editing templates/CSS
+	// without rebuilding the binary).
+	templatesFS := assets.Templates
+	if *tmplDir != "" {
+		templatesFS = os.DirFS(*tmplDir)
+		log.Printf("template override: reading from %s", *tmplDir)
+	}
+	staticFS := assets.Static
+	if *staticDir != "" {
+		staticFS = os.DirFS(*staticDir)
+		log.Printf("static override: reading from %s", *staticDir)
+	}
+
 	return server.Config{
-		VaultDir:    *vault,
-		TemplateDir: *tmplDir,
-		StaticDir:   *staticDir,
-		SiteURL:     *siteURL,
-		SiteTitle:   *siteTitle,
-		SiteDesc:    *siteDesc,
-		FeedAuthor:  *feedAuthor,
+		VaultDir:   *vault,
+		Templates:  templatesFS,
+		Static:     staticFS,
+		SiteURL:    *siteURL,
+		SiteTitle:  *siteTitle,
+		SiteDesc:   *siteDesc,
+		FeedAuthor: *feedAuthor,
 	}, *addr
 }
 
