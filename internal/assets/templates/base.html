@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{.Title}} — Tyler Lugger</title>
 <meta name="description" content="{{.Summary}}">
+<meta property="og:title" content="{{.Title}}">
+<meta property="og:description" content="{{.Summary}}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="/posts/{{.Slug}}">
+{{if .Image}}<meta property="og:image" content="{{.Image}}">{{end}}
+<meta name="twitter:card" content="{{if .Image}}summary_large_image{{else}}summary{{end}}">
+<meta name="twitter:title" content="{{.Title}}">
+<meta name="twitter:description" content="{{.Summary}}">
+{{if .Image}}<meta name="twitter:image" content="{{.Image}}">{{end}}
 <meta name="theme-color" content="#1a1a1e">
 <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg">

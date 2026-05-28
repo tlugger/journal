@@ -33,6 +33,7 @@ const PerPostTemplateFile = "template.html"
 type Rendered struct {
 	Post         Post
 	BodyHTML     template.HTML // markdown rendered to HTML
+	Image        string // first image URL from the post body (rewritten path), empty if none
 	PerPostTmpl  *template.Template // nil if no template.html in the post folder
 }
 
@@ -45,6 +46,7 @@ type TemplateData struct {
 	Date    time.Time
 	Summary string
 	Content template.HTML
+	Image   string // absolute URL to the post's preview image, empty if none
 }
 
 // Renderer turns a Post into HTML, with two responsibilities the goldmark
@@ -78,7 +80,7 @@ func NewRenderer() *Renderer {
 // Render produces the HTML body for a post and loads its per-post template
 // if one exists on disk.
 func (r *Renderer) Render(p Post) (*Rendered, error) {
-	rewritten, err := r.renderBody(p)
+	rewritten, imgURL, err := r.renderBody(p)
 	if err != nil {
 		return nil, fmt.Errorf("render markdown for %s: %w", p.Slug, err)
 	}
@@ -86,6 +88,7 @@ func (r *Renderer) Render(p Post) (*Rendered, error) {
 	out := &Rendered{
 		Post:     p,
 		BodyHTML: template.HTML(rewritten),
+		Image:    imgURL,
 	}
 
 	tmplPath := filepath.Join(p.Dir, PerPostTemplateFile)
@@ -104,16 +107,18 @@ func (r *Renderer) Render(p Post) (*Rendered, error) {
 	return out, nil
 }
 
-func (r *Renderer) renderBody(p Post) ([]byte, error) {
+func (r *Renderer) renderBody(p Post) ([]byte, string, error) {
 	source := []byte(p.Body)
 	doc := r.md.Parser().Parse(text.NewReader(source))
 	rewriteRelativeURLs(doc, source, p.Slug)
 
+	imgURL := firstImageURL(doc)
+
 	var buf bytes.Buffer
 	if err := r.md.Renderer().Render(&buf, source, doc); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return buf.Bytes(), nil
+	return buf.Bytes(), imgURL, nil
 }
 
 // rewriteRelativeURLs walks the AST and rewrites any relative image src or
@@ -150,6 +155,21 @@ func rewriteURL(raw, slug string) string {
 	}
 	// Use path.Join (not filepath.Join) so we get forward slashes on every OS.
 	return path.Join("/posts", slug, raw)
+}
+
+func firstImageURL(root ast.Node) string {
+	var dest string
+	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		if img, ok := n.(*ast.Image); ok {
+			dest = string(img.Destination)
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	return dest
 }
 
 // FirstParagraphText extracts the first paragraph of the rendered HTML as

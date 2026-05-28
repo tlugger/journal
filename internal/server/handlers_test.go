@@ -105,6 +105,23 @@ func TestHandlePost_PublishedSlug(t *testing.T) {
 	}
 }
 
+func TestHandlePost_OpenGraphTags(t *testing.T) {
+	ts := newTestServer(t)
+	_, body, _ := getString(t, ts, "/posts/first-post")
+	for _, want := range []string{
+		`<meta property="og:title" content="First post">`,
+		`<meta property="og:description" content="A basic published post used as a fixture for renderer and handler tests.">`,
+		`<meta property="og:type" content="article">`,
+		`<meta property="og:image" content="https://blog.test.local/posts/first-post/image.png">`,
+		`<meta name="twitter:card" content="summary_large_image">`,
+		`<meta name="twitter:image" content="https://blog.test.local/posts/first-post/image.png">`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q in response body", want)
+		}
+	}
+}
+
 func TestHandlePost_MissingSlug404(t *testing.T) {
 	ts := newTestServer(t)
 	status, _, _ := getString(t, ts, "/posts/nope")

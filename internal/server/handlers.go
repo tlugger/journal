@@ -41,12 +41,18 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var image string
+	if rendered.Image != "" {
+		image = strings.TrimRight(s.cfg.SiteURL, "/") + rendered.Image
+	}
+
 	data := post.TemplateData{
 		Title:   p.Title,
 		Slug:    p.Slug,
 		Date:    p.Date,
 		Summary: p.Summary,
 		Content: rendered.BodyHTML,
+		Image:   image,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

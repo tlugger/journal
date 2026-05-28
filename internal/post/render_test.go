@@ -38,6 +38,42 @@ func TestRender_RelativeImageRewritten(t *testing.T) {
 	}
 }
 
+func TestRender_FirstImageExtracted(t *testing.T) {
+	r := NewRenderer()
+	p := Post{Slug: "img-post", Body: "Text before.\n\n![hero](cover.jpg)\n\n![second](other.png)\n"}
+	got, err := r.Render(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Image != "/posts/img-post/cover.jpg" {
+		t.Errorf("Image = %q, want /posts/img-post/cover.jpg", got.Image)
+	}
+}
+
+func TestRender_NoImageEmpty(t *testing.T) {
+	r := NewRenderer()
+	p := Post{Slug: "text-only", Body: "No images here.\n"}
+	got, err := r.Render(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Image != "" {
+		t.Errorf("Image = %q, want empty string", got.Image)
+	}
+}
+
+func TestRender_AbsoluteImagePreserved(t *testing.T) {
+	r := NewRenderer()
+	p := Post{Slug: "ext", Body: "![pic](https://example.com/img.png)\n"}
+	got, err := r.Render(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Image != "https://example.com/img.png" {
+		t.Errorf("Image = %q, want https://example.com/img.png", got.Image)
+	}
+}
+
 func TestRender_RelativeLinkRewritten(t *testing.T) {
 	r := NewRenderer()
 	p := Post{Slug: "a", Body: "[next](other.html)\n"}
